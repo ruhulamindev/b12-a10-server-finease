@@ -24,6 +24,14 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
 
+    const db = client.db("b12-a10-server-finease")
+    const fineaseCollection = db.collection("finance-all")
+
+    app.get('/finance-all', async (req, res) => {
+        const result = await fineaseCollection.find().toArray()
+        // console.log(result)
+  res.send(result)
+})
 
 
 
@@ -32,7 +40,8 @@ async function run() {
 
 
 
-    
+
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
