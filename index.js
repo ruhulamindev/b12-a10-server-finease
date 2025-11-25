@@ -1,14 +1,13 @@
-const express = require('express')
-const app = express()
-const cors = require("cors")
-const { MongoClient, ServerApiVersion } = require('mongodb');
-const port = 3000
-app.use(cors())
-app.use(express.json())
+const express = require("express");
+const app = express();
+const cors = require("cors");
+const { MongoClient, ServerApiVersion } = require("mongodb");
+const port = 5000;
+app.use(cors());
+app.use(express.json());
 
-
-
-const uri = "mongodb+srv://b12-a10-server-finease:GfkOTZ9cvPhDRbzg@cluster0.ftpnek1.mongodb.net/?appName=Cluster0";
+const uri =
+  "mongodb+srv://b12-a10-server-finease:GfkOTZ9cvPhDRbzg@cluster0.ftpnek1.mongodb.net/?appName=Cluster0";
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
@@ -16,7 +15,7 @@ const client = new MongoClient(uri, {
     version: ServerApiVersion.v1,
     strict: true,
     deprecationErrors: true,
-  }
+  },
 });
 
 async function run() {
@@ -24,27 +23,30 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
 
-    const db = client.db("b12-a10-server-finease")
-    const fineaseCollection = db.collection("finance-all")
+    const db = client.db("b12-a10-server-finease");
+    const fineaseCollection = db.collection("finance-all");
 
-    app.get('/finance-all', async (req, res) => {
-        const result = await fineaseCollection.find().toArray()
-        // console.log(result)
-  res.send(result)
-})
+    app.get("/finance-all", async (req, res) => {
+      const result = await fineaseCollection.find().toArray();
+      // console.log(result)
+      res.send(result);
+    });
 
-
-
-
-
-
-
-
-
+    app.post("/finance-all", async (req, res) => {
+      const data = req.body;
+      console.log(data)
+      const result = await fineaseCollection.insertOne(data)
+      res.send({
+        success: true,
+        result
+      });
+    });
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    console.log(
+      "Pinged your deployment. You successfully connected to MongoDB!"
+    );
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
@@ -52,14 +54,10 @@ async function run() {
 }
 run().catch(console.dir);
 
-
-
-
-app.get('/', (req, res) => {
-  res.send('Server is runnig fine')
-})
-
+app.get("/", (req, res) => {
+  res.send("Server is runnig fine");
+});
 
 app.listen(port, () => {
-  console.log(`Surver is listening on port ${port}`)
-})
+  console.log(`Surver is listening on port ${port}`);
+});
