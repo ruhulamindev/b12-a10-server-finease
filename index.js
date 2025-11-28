@@ -3,9 +3,12 @@ const app = express();
 const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const port = 5000;
+
+// Middlewares
 app.use(cors());
 app.use(express.json());
 
+// MongoDB connection
 const uri =
   "mongodb+srv://b12-a10-server-finease:GfkOTZ9cvPhDRbzg@cluster0.ftpnek1.mongodb.net/?appName=Cluster0";
 
@@ -26,23 +29,30 @@ async function run() {
     const db = client.db("b12-a10-server-finease");
     const fineaseCollection = db.collection("finance-all");
 
+    // ----------------------------------------------------------------------
+    // Optional: Convert old string amounts to numbers
+    await fineaseCollection.updateMany({ amount: { $type: "string" } }, [
+      { $set: { amount: { $toDouble: "$amount" } } },
+    ]);
 
-
-
-    // get request
+    // ---------------------------------------------------------------------
+    // GET all transactions
     app.get("/finance-all", async (req, res) => {
       const result = await fineaseCollection.find().toArray();
       // console.log(result)
       res.send(result);
     });
 
+    // ---------------------------------------------------------------------
 
-
-
-    // post request
+    // POST a new transaction
     app.post("/finance-all", async (req, res) => {
       const data = req.body;
       // console.log(data)
+
+      // Convert amount to number
+      if (data.amount) data.amount = Number(data.amount);
+
       const result = await fineaseCollection.insertOne(data);
       res.send({
         success: true,
@@ -50,19 +60,81 @@ async function run() {
       });
     });
 
-
-
-
-    // get request and detail page api create
+    // ---------------------------------------------------------------------
+    // GET transaction details + total amount (same category & type)
     app.get("/finance-all/:id", async (req, res) => {
       const { id } = req.params;
       // console.log(id)
       const result = await fineaseCollection.findOne({ _id: new ObjectId(id) });
+      if (!result) {
+        return res.send({ success: false, message: "Not found" });
+      }
 
-    res.send({ success: true, result });
+      // Calculate total amount for same category & type
+      const total = await fineaseCollection
+        .aggregate([
+          {
+            $match: {
+              email: result.email, // Owner-specific
+              category: result.category,
+              type: result.type,
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              totalAmount: { $sum: "$amount" },
+            },
+          },
+        ])
+        .toArray();
+
+      const totalAmount = total[0]?.totalAmount || 0;
+
+      res.send({ success: true, result, totalAmount });
     });
 
-    
+    // ---------------------------------------------------------------------
+    // UPDATE transaction
+    app.put("/finance-all/:id", async (req, res) => {
+      const { id } = req.params;
+      // console.log(id);
+      const data = req.body;
+
+      // Convert amount to number
+      if (data.amount) {
+        data.amount = Number(data.amount);
+      }
+      // const objectId = new ObjectId(id);
+      const filter = { _id: new ObjectId(id) };
+      const update = {
+        $set: data,
+      };
+      const result = await fineaseCollection.updateOne(filter, update);
+
+      res.send({
+        success: true,
+        result,
+      });
+    });
+
+    // ---------------------------------------------------------------------
+    // DELETE transaction
+    app.delete("/finance-all/:id", async (req, res) => {
+      const { id } = req.params;
+      // console.log(id)
+      // const objectId = new ObjectId(id);
+      // const filter = { _id: objectId };
+      const result = await fineaseCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
+
+      res.send({
+        success: true,
+        result,
+      });
+    });
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(
