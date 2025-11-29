@@ -84,7 +84,7 @@ async function run() {
         .aggregate([
           {
             $match: {
-              email: result.email, // Owner-specific
+              email: result.email,
               category: result.category,
               type: result.type,
             },
@@ -142,6 +142,38 @@ async function run() {
         success: true,
         result,
       });
+    });
+
+    // ---------------------------------------------------------------------
+    // GET /overview
+    app.get("/overview", async (req, res) => {
+      try {
+        const email = req.query.email;
+        const matchQuery = email ? { email } : {};
+
+        const allTransactions = await fineaseCollection
+          .find(matchQuery)
+          .toArray();
+
+        let totalIncome = 0;
+        let totalExpense = 0;
+
+        allTransactions.forEach((item) => {
+          if (item.type === "Income") totalIncome += item.amount;
+          if (item.type === "Expense") totalExpense += item.amount;
+        });
+
+        const totalBalance = totalIncome + totalExpense;
+
+        res.send({
+          success: true,
+          totalBalance,
+          totalIncome,
+          totalExpense,
+        });
+      } catch (err) {
+        res.status(500).send({ success: false, message: err.message });
+      }
     });
 
     // Send a ping to confirm a successful connection
