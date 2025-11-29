@@ -38,7 +38,16 @@ async function run() {
     // ---------------------------------------------------------------------
     // GET all transactions
     app.get("/finance-all", async (req, res) => {
-      const result = await fineaseCollection.find().toArray();
+      const { sortBy, order } = req.query;
+      let sortOption = {};
+
+      if (sortBy === "date") {
+        sortOption = { date: order === "asc" ? 1 : -1 };
+      } else if (sortBy === "amount") {
+        sortOption = { amount: order === "asc" ? 1 : -1 };
+      }
+
+      const result = await fineaseCollection.find().sort(sortOption).toArray();
       // console.log(result)
       res.send(result);
     });
