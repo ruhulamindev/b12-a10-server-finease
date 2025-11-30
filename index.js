@@ -45,6 +45,8 @@ async function run() {
         sortOption = { date: order === "asc" ? 1 : -1 };
       } else if (sortBy === "amount") {
         sortOption = { amount: order === "asc" ? 1 : -1 };
+      } else {
+        sortOption = { createdAt: -1 };
       }
 
       const result = await fineaseCollection.find().sort(sortOption).toArray();
@@ -61,6 +63,7 @@ async function run() {
 
       // Convert amount to number
       if (data.amount) data.amount = Number(data.amount);
+      data.createdAt = new Date();
 
       const result = await fineaseCollection.insertOne(data);
       res.send({
