@@ -1,12 +1,19 @@
 const express = require("express");
 const app = express();
 const cors = require("cors");
+const admin = require("firebase-admin");
+const serviceAccount = require("./service.json");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const port = 5000;
 
 // Middlewares
 app.use(cors());
 app.use(express.json());
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+
 
 // MongoDB connection
 const uri =
@@ -21,6 +28,29 @@ const client = new MongoClient(uri, {
   },
 });
 
+// verifyToken Middleware
+const verifyToken = async (req,res,next) =>{
+  const authorization = req.headers.authorization
+  if(!authorization){
+        return res.status(401).send({
+      message:"Unauthorized Access. Token Not Found"
+    })
+  }
+  const token = authorization.split(' ')[1]
+
+
+  try{
+    await admin.auth().verifyIdToken(token)
+    next()
+  }
+  catch(error) {
+    res.status(401).send({
+      message:"unauthorized access."
+    })
+  }
+
+}
+
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
@@ -29,16 +59,11 @@ async function run() {
     const db = client.db("b12-a10-server-finease");
     const fineaseCollection = db.collection("finance-all");
 
-    // ----------------------------------------------------------------------
-    // Optional: Convert old string amounts to numbers
-    await fineaseCollection.updateMany({ amount: { $type: "string" } }, [
-      { $set: { amount: { $toDouble: "$amount" } } },
-    ]);
-
     // ---------------------------------------------------------------------
     // GET all transactions
-    app.get("/finance-all", async (req, res) => {
-      const { sortBy, order } = req.query;
+    app.get("/finance-all",verifyToken, async (req, res) => {
+      const { sortBy, order, email } = req.query;
+
       let sortOption = {};
 
       if (sortBy === "date") {
@@ -49,7 +74,12 @@ async function run() {
         sortOption = { createdAt: -1 };
       }
 
-      const result = await fineaseCollection.find().sort(sortOption).toArray();
+        let filter = {};
+          if (email) {
+    filter.email = email;
+  }
+
+      const result = await fineaseCollection.find(filter).sort(sortOption).toArray();
       // console.log(result)
       res.send(result);
     });
@@ -74,7 +104,7 @@ async function run() {
 
     // ---------------------------------------------------------------------
     // GET transaction details + total amount (same category & type)
-    app.get("/finance-all/:id", async (req, res) => {
+    app.get("/finance-all/:id",verifyToken, async (req, res) => {
       const { id } = req.params;
       // console.log(id)
       const result = await fineaseCollection.findOne({ _id: new ObjectId(id) });
@@ -148,7 +178,7 @@ async function run() {
     });
 
     // ---------------------------------------------------------------------
-    // GET /overview
+    // GET / Overview (Home Page)
     app.get("/overview", async (req, res) => {
       try {
         const email = req.query.email;
@@ -178,6 +208,8 @@ async function run() {
         res.status(500).send({ success: false, message: err.message });
       }
     });
+
+
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
