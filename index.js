@@ -206,13 +206,12 @@ async function run() {
 
     // ---------------------------------------------------------------------
     // GET / Overview (Home Page)
-    app.get("/overview", async (req, res) => {
+    app.get("/overview",verifyToken, async (req, res) => {
       try {
-        const email = req.query.email;
-        const matchQuery = email ? { email } : {};
+        const email = req.user.email;
 
         const allTransactions = await fineaseCollection
-          .find(matchQuery)
+          .find({email})
           .toArray();
 
         let totalIncome = 0;
@@ -223,7 +222,7 @@ async function run() {
           if (item.type === "Expense") totalExpense += item.amount;
         });
 
-        const totalBalance = totalIncome + totalExpense;
+        const totalBalance = totalIncome - totalExpense;
 
         res.send({
           success: true,
