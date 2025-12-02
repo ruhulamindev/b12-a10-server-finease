@@ -2,6 +2,7 @@ const express = require("express");
 const app = express();
 const cors = require("cors");
 const admin = require("firebase-admin");
+require("dotenv").config()
 const serviceAccount = require("./service.json");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const port = 5000;
@@ -11,13 +12,12 @@ app.use(cors());
 app.use(express.json());
 
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
+  credential: admin.credential.cert(serviceAccount),
 });
 
-
+console.log(process.env.DB_PASSWORD)
 // MongoDB connection
-const uri =
-  "mongodb+srv://b12-a10-server-finease:GfkOTZ9cvPhDRbzg@cluster0.ftpnek1.mongodb.net/?appName=Cluster0";
+const uri = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@cluster0.ftpnek1.mongodb.net/?appName=Cluster0`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
@@ -29,27 +29,26 @@ const client = new MongoClient(uri, {
 });
 
 // verifyToken Middleware
-const verifyToken = async (req,res,next) =>{
-  const authorization = req.headers.authorization
-  if(!authorization){
-        return res.status(401).send({
-      message:"Unauthorized Access. Token Not Found"
-    })
+const verifyToken = async (req, res, next) => {
+  const authorization = req.headers.authorization;
+  if (!authorization) {
+    return res.status(401).send({
+      message: "Unauthorized Access. Token Not Found",
+    });
   }
-  const token = authorization.split(' ')[1]
+  const token = authorization.split(" ")[1];
 
-
-  try{
-    await admin.auth().verifyIdToken(token)
-    next()
-  }
-  catch(error) {
+  try {
+    const decodedUser = await admin.auth().verifyIdToken(token);
+    // console.log("Decoded User:", decodedUser);
+    req.user = { email: decodedUser.email };
+    next();
+  } catch (error) {
     res.status(401).send({
-      message:"unauthorized access."
-    })
+      message: "Unauthorized Access.",
+    });
   }
-
-}
+};
 
 async function run() {
   try {
@@ -61,7 +60,7 @@ async function run() {
 
     // ---------------------------------------------------------------------
     // GET all transactions
-    app.get("/finance-all",verifyToken, async (req, res) => {
+    app.get("/finance-all", verifyToken, async (req, res) => {
       const { sortBy, order, email } = req.query;
 
       let sortOption = {};
@@ -74,12 +73,12 @@ async function run() {
         sortOption = { createdAt: -1 };
       }
 
-        let filter = {};
-          if (email) {
-    filter.email = email;
-  }
+      const filter = { email: req.user.email };
 
-      const result = await fineaseCollection.find(filter).sort(sortOption).toArray();
+      const result = await fineaseCollection
+        .find(filter)
+        .sort(sortOption)
+        .toArray();
       // console.log(result)
       res.send(result);
     });
@@ -87,13 +86,14 @@ async function run() {
     // ---------------------------------------------------------------------
 
     // POST a new transaction
-    app.post("/finance-all", async (req, res) => {
+    app.post("/finance-all", verifyToken, async (req, res) => {
       const data = req.body;
       // console.log(data)
 
       // Convert amount to number
       if (data.amount) data.amount = Number(data.amount);
       data.createdAt = new Date();
+      data.email = req.user.email;
 
       const result = await fineaseCollection.insertOne(data);
       res.send({
@@ -104,12 +104,17 @@ async function run() {
 
     // ---------------------------------------------------------------------
     // GET transaction details + total amount (same category & type)
-    app.get("/finance-all/:id",verifyToken, async (req, res) => {
+    app.get("/finance-all/:id", verifyToken, async (req, res) => {
       const { id } = req.params;
       // console.log(id)
-      const result = await fineaseCollection.findOne({ _id: new ObjectId(id) });
+      const result = await fineaseCollection.findOne({
+        _id: new ObjectId(id),
+        email: req.user.email,
+      });
       if (!result) {
-        return res.send({ success: false, message: "Not found" });
+        return res
+          .status(403)
+          .send({ success: false, message: "Unauthorized: Not the owner" });
       }
 
       // Calculate total amount for same category & type
@@ -138,7 +143,7 @@ async function run() {
 
     // ---------------------------------------------------------------------
     // UPDATE transaction
-    app.put("/finance-all/:id", async (req, res) => {
+    app.put("/finance-all/:id", verifyToken, async (req, res) => {
       const { id } = req.params;
       // console.log(id);
       const data = req.body;
@@ -147,6 +152,17 @@ async function run() {
       if (data.amount) {
         data.amount = Number(data.amount);
       }
+
+      const transaction = await fineaseCollection.findOne({
+        _id: new ObjectId(id),
+      });
+      // Check if the logged-in user is the owner
+      if (transaction.email !== req.user.email) {
+        return res
+          .status(403)
+          .send({ success: false, message: "Unauthorized: Not the owner" });
+      }
+
       // const objectId = new ObjectId(id);
       const filter = { _id: new ObjectId(id) };
       const update = {
@@ -162,11 +178,22 @@ async function run() {
 
     // ---------------------------------------------------------------------
     // DELETE transaction
-    app.delete("/finance-all/:id", async (req, res) => {
+    app.delete("/finance-all/:id", verifyToken, async (req, res) => {
       const { id } = req.params;
       // console.log(id)
       // const objectId = new ObjectId(id);
       // const filter = { _id: objectId };
+
+      const transaction = await fineaseCollection.findOne({
+        _id: new ObjectId(id),
+      });
+      // Check if the logged-in user is the owner
+      if (transaction.email !== req.user.email) {
+        return res
+          .status(403)
+          .send({ success: false, message: "Unauthorized: Not the owner" });
+      }
+
       const result = await fineaseCollection.deleteOne({
         _id: new ObjectId(id),
       });
@@ -208,8 +235,6 @@ async function run() {
         res.status(500).send({ success: false, message: err.message });
       }
     });
-
-
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
