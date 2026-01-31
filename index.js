@@ -2,20 +2,31 @@ const express = require("express");
 const app = express();
 const cors = require("cors");
 const admin = require("firebase-admin");
-require("dotenv").config()
+require("dotenv").config();
 const serviceAccount = require("./service.json");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const port = 5000;
 
 // Middlewares
-app.use(cors());
+app.use(
+  cors({
+    origin: [
+      "https://b12-a10-client-finease.netlify.app",
+      "http://localhost:5173",
+      "http://financelbm.shop",
+      "https://financelbm.shop",
+    ],
+    credentials: true,
+    optionsSuccessStatus: 200,
+  }),
+);
 app.use(express.json());
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
 
-console.log(process.env.DB_PASSWORD)
+console.log(process.env.DB_PASSWORD);
 // MongoDB connection
 const uri = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@cluster0.ftpnek1.mongodb.net/?appName=Cluster0`;
 
@@ -206,12 +217,12 @@ async function run() {
 
     // ---------------------------------------------------------------------
     // GET / Overview (Home Page)
-    app.get("/overview",verifyToken, async (req, res) => {
+    app.get("/overview", verifyToken, async (req, res) => {
       try {
         const email = req.user.email;
 
         const allTransactions = await fineaseCollection
-          .find({email})
+          .find({ email })
           .toArray();
 
         let totalIncome = 0;
@@ -238,7 +249,7 @@ async function run() {
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
     console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
+      "Pinged your deployment. You successfully connected to MongoDB!",
     );
   } finally {
     // Ensures that the client will close when you finish/error
